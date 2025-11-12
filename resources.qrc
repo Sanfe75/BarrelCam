@@ -1,0 +1,36 @@
+<!DOCTYPE RCC><RCC version="1.0">
+    <qresource>
+        <file alias="edit_cam_add.png">images/edit_cam_add.png</file>
+        <file alias="edit_cam_edit.png">images/edit_cam_edit.png</file>
+        <file alias="edit_cam_move.png">images/edit_cam_move.png</file>
+        <file alias="edit_copy.png">images/edit_copy.png</file>
+        <file alias="edit_cut.png">images/edit_cut.png</file>
+        <file alias="edit_delete.png">images/edit_delete.png</file>
+        <file alias="edit_mirror.png">images/edit_mirror.png</file>
+        <file alias="edit_paste.png">images/edit_paste.png</file>
+        <file alias="edit_point_add.png">images/edit_point_add.png</file>
+        <file alias="edit_point_edit.png">images/edit_point_edit.png</file>
+        <file alias="edit_redo.png">images/edit_redo.png</file>
+        <file alias="edit_undo.png">images/edit_undo.png</file>
+        <file alias="file_close.png">images/file_close.png</file>
+        <file alias="file_export.png">images/file_export.png</file>
+        <file alias="file_export_2d.png">images/file_export_2d.png</file>
+        <file alias="file_export_3d.png">images/file_export_3d.png</file>
+        <file alias="file_new.png">images/file_new.png</file>
+        <file alias="file_open.png">images/file_open.png</file>
+        <file alias="file_print.png">images/file_print.png</file>
+        <file alias="file_quit.png">images/file_quit.png</file>
+        <file alias="file_save.png">images/file_save.png</file>
+        <file alias="file_save_all.png">images/file_save_all.png</file>
+        <file alias="file_save_as.png">images/file_save_as.png</file>
+        <file alias="help_about.png">images/help_about.png</file>
+        <file alias="icon.png">images/icon.png</file>
+        <file alias="profile.png">images/profile.png</file>
+        <file alias="view_graphs.png">images/view_graphs.png</file>
+        <file alias="view_settings.png">images/view_settings.png</file>
+        <file alias="view_zoom.png">images/view_zoom.png</file>
+        <file alias="view_zoom_all.png">images/view_zoom_all.png</file>
+        <file alias="window_arrange_horizontal.png">images/window_arrange_horizontal.png</file>
+        <file alias="window_arrange_vertical.png">images/window_arrange_vertical.png</file>
+    </qresource>
+</RCC>
