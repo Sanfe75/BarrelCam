@@ -523,22 +523,33 @@ class BarrelCamEditor(QMainWindow):
             extension = file_name[-4:].lower()
             if extension != ".dxf":
                 file_name += ".dxf"
-            self.cam.save_2D_DXF(file_name)
+            result, message = self.cam.save_2D_DXF(file_name)
+        if result:
+            self.update_status(message)
 
     #def file_export_3D(self):
     #    """
     #    Exports a 3d DXF
     #    """
 
-        #pass
-        # directory = self.file_name[:-4] + ".dxf"
-        # file_name = QFileDialog.getSaveFileName(self, "Barrel Cam Editor - Export the cam file",
-        #                                       directory, "DXF file (*.dxf)")
-        # if file_name:
-        #    extension = file_name[-4:].lower()
-        #    if extension != ".dxf":
-        #        file_name += ".dxf"
-        #    self.cam.save3DDXF(file_name)
+    #    if len(self.cam) == 0:
+    #        error_dialog = QMessageBox()
+    #        error_dialog.setIcon(QMessageBox.Critical)
+    #        error_dialog.setWindowTitle("Error")
+    #        error_dialog.setText("Impossible to export the file.")
+    #        error_dialog.setInformativeText("You need at least 1 profile to save to STP file.")
+    #        error_dialog.setStandardButtons(QMessageBox.Ok)
+    #        error_dialog.exec()
+    #        return
+
+    #    directory = self.cam.file_name()[:-4] + ".dxf"
+    #    file_name = QFileDialog.getSaveFileName(self, "Barrel Cam Editor - Export the cam file",
+    #                                            directory, "DXF file (*.dxf)")[0]
+    #    if file_name:
+    #        extension = file_name[-4:].lower()
+    #        if extension != ".dxf":
+    #            file_name += ".dxf"
+    #        self.cam.save_3D_DXF(file_name)
 
     def file_export_3DSTP(self):
         """
@@ -562,7 +573,10 @@ class BarrelCamEditor(QMainWindow):
             extension = file_name[-4:].lower()
             if extension != ".stp":
                 file_name += ".stp"
-            self.cam.save_3D_STP(file_name)
+            result, message = self.cam.save_3D_STP(file_name)
+            if result:
+                self.update_status(message)
+
 
     #def file_export_3DCSV(self):
     #    """
@@ -676,11 +690,14 @@ class BarrelCamEditor(QMainWindow):
         if not self.check_opened(file_name):
             if not self.cam.dirty() and self.cam.file_name().startswith("Unnamed"):
                 self.cam.set_file_name(file_name)
-                self.cam.load()
-                self.update_status("Cam loaded from {0}".format(QFileInfo(self.cam.file_name()).fileName()))
-                self.scene.update_scene()
-                self.update_widgets()
-                self.update_ui()
+                result, message = self.cam.load()
+                if result:
+                    self.update_status("Cam loaded from {0}".format(QFileInfo(self.cam.file_name()).fileName()))
+                    self.scene.update_scene()
+                    self.update_widgets()
+                    self.update_ui()
+                else:
+                    self.update_status(message)
             else:
                 BarrelCamEditor(file_name).show()
 

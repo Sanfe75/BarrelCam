@@ -17,13 +17,13 @@ import sys
 
 from bisect import insort_left
 #from cadquery.vis import show
-from cadquery import exporters, Workplane
+from cadquery import Workplane
 from numpy import array, cos, linalg, pi, sin
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
 MAGIC_NUMBER = 20140112
-FILE_VERSION = 1
+FILE_VERSION = 2
 
 # defaults:
 RADIUS = 149.0
@@ -888,17 +888,19 @@ class Cam(object):
             if magic != MAGIC_NUMBER:
                 raise IOError("unrecognized file type")
             version = pickle.load(fh)
-            if version != FILE_VERSION:
+            if version == FILE_VERSION:
+                self.__angle_steps = pickle.load(fh)
+                self.__displacement_steps = pickle.load(fh)
+                self.__speed = pickle.load(fh)
+                self.__radius = pickle.load(fh)
+                self.__cams = pickle.load(fh)
+                self.__dirty = False
+                return True, "Loaded {0} cam from {1}".format(len(self.__cams), os.path.basename(self.__file_name))
+
+            elif version == 1:
+                return False, "Impossible to load an older version file"
+            else:
                 raise IOError("unrecognized file version")
-
-            self.__angle_steps = int(1 / pickle.load(fh))
-            self.__displacement_steps = int(1 / pickle.load(fh))
-            self.__speed = pickle.load(fh)
-            self.__radius = pickle.load(fh)
-            self.__cams = pickle.load(fh)
-
-        self.__dirty = False
-        return True, "Loaded {0} cam from {1}".format(len(self.__cams), os.path.basename(self.__file_name))
 
     def max_displacement(self):
         """
@@ -934,8 +936,8 @@ class Cam(object):
         with open(self.file_name(), 'wb') as fh:
             pickle.dump(MAGIC_NUMBER, fh)
             pickle.dump(FILE_VERSION, fh)
-            pickle.dump(1 / self.angle_steps(), fh)
-            pickle.dump(1 / self.displacement_steps(), fh)
+            pickle.dump(self.angle_steps(), fh)
+            pickle.dump(self.displacement_steps(), fh)
             pickle.dump(self.__speed, fh)
             pickle.dump(self.__radius, fh)
             pickle.dump(self.__cams, fh)
@@ -963,10 +965,11 @@ class Cam(object):
             polyline = model_space.query('LWPOLYLINE')[i]
             polyline.dxf.layer = cam_profile.label()
         drawing.saveas(file_name)
+        return True, "Cam saved to {0}".format(os.path.basename(file_name))
 
     def save_3D_STP(self, file_name):
         """
-        Exports the Cam Data to file_name
+        Exports the Cam Data to file_name in STEP format
         """
 
         results = []
@@ -981,8 +984,8 @@ class Cam(object):
             for j in range(0, len(points), 10):
                 polyline.append((self.__radius * cos(points[j][0] * (pi / 180)),
                                 self.__radius * sin(points[j][0] * (pi / 180)), -points[j][1]))
-                aux.append((self.__radius * cos(points[j][0] * (pi / 180)),
-                            self.__radius * sin(points[j][0] * (pi / 180)), -points[j][1] + height/2))
+                aux.append(((self.__radius - depth) * cos(points[j][0] * (pi / 180)),
+                            (self.__radius - depth) * sin(points[j][0] * (pi / 180)), -points[j][1]))
 
             section = Workplane("XZ").move(self.radius() - depth/2, -points[0][1]).rect(depth, height)
             path = Workplane("XY").spline(polyline)
@@ -993,8 +996,10 @@ class Cam(object):
         result = results[0]
         for i in range(1, len(results)):
             result = result.union(results[i])
-        #exporters.export(result, file_name, exporters.ExportTypes.STEP)
+
+        #show([result, path, aux_spine, section])
         result.val().exportStep(file_name)
+        return True, "Cam saved to {0}".format(os.path.basename(file_name))
 
     def set_dirty(self, dirty):
         """Setter for self.__dirty.
