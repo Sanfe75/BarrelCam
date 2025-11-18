@@ -17,11 +17,11 @@ import platform
 import PySide6
 import sys
 
-from PySide6.QtCore import QEvent, QFile, QFileInfo, QMargins, QSettings, Qt
+from PySide6.QtCore import QEvent, QFile, QFileInfo, QMargins, QSettings, QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QPageLayout, QPainter, QUndoStack
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
-from PySide6.QtWidgets import QApplication, QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMessageBox, QSpinBox,\
-    QTabWidget
+from PySide6.QtWidgets import QApplication, QDockWidget, QFileDialog, QGridLayout, QInputDialog, QMainWindow, \
+    QMessageBox, QSpinBox, QScrollArea, QLabel, QWidget
 
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 
@@ -32,7 +32,7 @@ import qrcresources
 from BarrelCam import camcmd, camdata, camdlg, camwidget
 
 __author__ = 'simone.sanfelici'
-__version__ = "0.9.1"
+__version__ = "0.9.2"
 
 
 class BarrelCamEditor(QMainWindow):
@@ -84,20 +84,31 @@ class BarrelCamEditor(QMainWindow):
 
         self.graphs_widget = None
 
-        #table_dock_widget = QDockWidget("Table View", self)
-        #table_dock_widget.setObjectName("TableDockWidget")
-        #table_dock_widget.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        #self.table_widget = camwidget.TableCamWidget(self.cam)
-        #table_dock_widget.setWidget(self.table_widget)
-        #self.addDockWidget(Qt.LeftDockWidgetArea, table_dock_widget)
+        list_dock_widget = QDockWidget("List View", self)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setWidgetResizable(True)
+        list_dock_widget.setObjectName("ListDockWidget")
+        list_dock_widget.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+        list_dock_widget.setWidget(self.scroll_area)
+        self.addDockWidget(Qt.LeftDockWidgetArea, list_dock_widget)
 
-        tab_dock_widget = QDockWidget("Tab View", self)
-        tab_dock_widget.setObjectName("TabDockWidget")
-        tab_dock_widget.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        #self.tab_widget = camwidget.TabCamWidget(self.cam)
-        self.tab_widget = QTabWidget()
-        tab_dock_widget.setWidget(self.tab_widget)
-        self.addDockWidget(Qt.LeftDockWidgetArea, tab_dock_widget)
+
+
+
+
+
+
+
+
+
+        #tab_dock_widget = QDockWidget("Tab View", self)
+        #tab_dock_widget.setObjectName("TabDockWidget")
+        #tab_dock_widget.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+        #self.tab_widget = QTabWidget()
+        #tab_dock_widget.setWidget(self.tab_widget)
+        #self.addDockWidget(Qt.LeftDockWidgetArea, tab_dock_widget)
 
         status = self.statusBar()
         status.setSizeGripEnabled(False)
@@ -117,10 +128,8 @@ class BarrelCamEditor(QMainWindow):
                                                   tip="Save all the Resource collections")
         file_export_2DDXF_action = self.create_action("Export &2D DXF...", self.file_export_2D, icon="file_export_2d",
                                                       tip="Export 2D DXF")
-        #file_export_3DDXF_action = self.create_action("Export &3D DXF...", self.file_export_3D, icon="file_export_3d",
-        #                                              tip="Export 3D DXF")
-        #file_export_2DCSV_action = self.create_action("Export &2D CSV...", self.file_export_2DCSV,
-        #                                              icon="file_export_2d", tip="Export 2D CSV")
+        file_export_2DCSV_action = self.create_action("Export &2D CSV...", self.file_export_2DCSV,
+                                                      icon="file_export_2d", tip="Export 2D CSV")
         file_export_3DSTP_action = self.create_action("Export &3D STP...", self.file_export_3DSTP,
                                                       icon="file_export_3d", tip="Export 3D STP")
         file_print_action = self.create_action("&Print", self.file_print, QKeySequence.Print, "file_print",
@@ -172,12 +181,10 @@ class BarrelCamEditor(QMainWindow):
 
         # Menus Creation
         self.file_menu = self.menuBar().addMenu("&File")
-        export_menu = self.file_menu.addMenu(QIcon(":/file_export.png"), "&Export")
-        #self.add_actions(export_menu, (file_export_2DDXF_action, file_export_3DDXF_action, file_export_2DCSV_action,
-        #                               file_export_3DCSV_action))
-        self.add_actions(export_menu, (file_export_2DDXF_action, file_export_3DSTP_action))
+        self.export_menu = self.file_menu.addMenu(QIcon(":/file_export.png"), "&Export")
+        self.add_actions(self.export_menu, (file_export_2DDXF_action, file_export_2DCSV_action, file_export_3DSTP_action))
         self.file_menu_actions = (file_new_action, file_open_action, file_close_action, None, file_save_action,
-                                  file_save_as_action, file_save_all_action, None, export_menu, None, file_print_action,
+                                  file_save_as_action, file_save_all_action, None, self.export_menu, None, file_print_action,
                                   file_quit_action)
         self.file_menu.aboutToShow.connect(self.update_file_menu)
 
@@ -297,6 +304,24 @@ class BarrelCamEditor(QMainWindow):
 
         BarrelCamEditor.add_recent_file(file_name)
         return False
+
+    def clear_scroll_area(self):
+        """
+        Clear self.scroll_area
+        """
+
+        layout = self.scroll_area.widget().layout()
+
+        while layout.count():
+
+            item = layout.takeAt(0).widget()
+            item.setParent(None)
+            if isinstance(item, camwidget.TableCamWidget):
+                item.clearSelection()
+                item.itemDoubleClicked.disconnect()
+            item.deleteLater()
+
+            del item
 
     def closeEvent(self, event):
         """
@@ -486,20 +511,19 @@ class BarrelCamEditor(QMainWindow):
                     self.undo_stack.push(
                         camcmd.PointsMoveCommand(self, point_list, delta_angle, delta_displacement, "Cam Points Moved"))
 
-    def edit_point_table(self):
+    def edit_point_table(self, table_item):
         """
         Edits the point corresponding to the selected row
         """
 
-        table = self.tab_widget.currentWidget()
-        table_index = self.tab_widget.currentIndex()
-        cam_profile = self.cam[table_index]
+        table = table_item.tableWidget()
+        cam_profile = table.profile
         indexes = [selected.row() for selected in table.selectionModel().selectedRows()]
         cam_point = cam_profile[indexes[0]]
         dlg = camdlg.CamPointDlg(cam_profile, cam_point, parent=self)
         if dlg.exec():
-            self.undo_stack.push(camcmd.PointEditCommand(self, cam_profile, cam_point, dlg.point(),
-                                                         "Cam Point Edited"))
+            self.clear_scroll_area()
+            self.undo_stack.push(camcmd.PointEditCommand(self, cam_profile, cam_point, dlg.point(), "Cam Point Edited"))
 
     def file_export_2D(self):
         """
@@ -527,29 +551,29 @@ class BarrelCamEditor(QMainWindow):
         if result:
             self.update_status(message)
 
-    #def file_export_3D(self):
-    #    """
-    #    Exports a 3d DXF
-    #    """
+    def file_export_2DCSV(self):
+        """
+        Exports a 3d DXF
+        """
 
-    #    if len(self.cam) == 0:
-    #        error_dialog = QMessageBox()
-    #        error_dialog.setIcon(QMessageBox.Critical)
-    #        error_dialog.setWindowTitle("Error")
-    #        error_dialog.setText("Impossible to export the file.")
-    #        error_dialog.setInformativeText("You need at least 1 profile to save to STP file.")
-    #        error_dialog.setStandardButtons(QMessageBox.Ok)
-    #        error_dialog.exec()
-    #        return
+        if len(self.cam) == 0:
+            error_dialog = QMessageBox()
+            error_dialog.setIcon(QMessageBox.Critical)
+            error_dialog.setWindowTitle("Error")
+            error_dialog.setText("Impossible to export the file.")
+            error_dialog.setInformativeText("You need at least 1 profile to save to STP file.")
+            error_dialog.setStandardButtons(QMessageBox.Ok)
+            error_dialog.exec()
+            return
 
-    #    directory = self.cam.file_name()[:-4] + ".dxf"
-    #    file_name = QFileDialog.getSaveFileName(self, "Barrel Cam Editor - Export the cam file",
-    #                                            directory, "DXF file (*.dxf)")[0]
-    #    if file_name:
-    #        extension = file_name[-4:].lower()
-    #        if extension != ".dxf":
-    #            file_name += ".dxf"
-    #        self.cam.save_3D_DXF(file_name)
+        directory = self.cam.file_name()[:-4] + ".csv"
+        file_name = QFileDialog.getSaveFileName(self, "Barrel Cam Editor - Export the cam file",
+                                                directory, "CSV file (*.csv)")[0]
+        if file_name:
+            extension = file_name[-4:].lower()
+            if extension != ".csv":
+                file_name += ".csv"
+            self.cam.save_2D_CSV(file_name)
 
     def file_export_3DSTP(self):
         """
@@ -667,9 +691,9 @@ class BarrelCamEditor(QMainWindow):
         message = """<b>Barrel Cam Editor</b> v {0}
                      <p>Copyright &copy; Sanfe Ltd.
                      All rights reserved.
-                     <p>This application can be used to create and
-                     compile a resource collection file that can
-                     be used in in python pyside6 projects.
+                     <p>This application can be used
+                     to create cylindrical cams with
+                     single or multiple profiles.
                      <p> Python {1} - Qt {2} - PySide6 {3}
                       on {4}.<p> Icons by <a href='https://icons8.com'>Icons8</a>
                      """.format(__version__, platform.python_version(), PySide6.QtCore.__version__, PySide6.__version__,
@@ -868,12 +892,6 @@ class BarrelCamEditor(QMainWindow):
                 self.selected_points.append(item)
             if isinstance(item, camwidget.CamProfileItem):
                 self.selected_cams.append(item)
-        '''table = self.tab_widget.currentWidget()
-            if table:
-                table_index = self.tab_widget.currentIndex()
-                #resources = self.collection[table_index]
-                indexes = [selected.row() for selected in table.selectionModel().selectedRows()]
-                print(indexes)'''
 
         self.edit_cam_move_action.setEnabled(len(self.selected_cams) > 0)
         self.edit_mirror_action.setEnabled(len(self.cam) > 0)
@@ -887,6 +905,7 @@ class BarrelCamEditor(QMainWindow):
         self.edit_undo_action.setEnabled(self.undo_stack.canUndo())
         self.edit_redo_action.setEnabled(self.undo_stack.canRedo())
         self.view_graphs_action.setEnabled(len(self.cam) > 0)
+        self.export_menu.setEnabled(len(self.cam) > 0)
 
     def update_widgets(self):
         """
@@ -894,12 +913,23 @@ class BarrelCamEditor(QMainWindow):
         """
 
         self.scene.update()
-        self.tab_widget.clear()
-        for profile in self.cam:
+
+        grid_layout = QGridLayout()
+        for column, profile in enumerate(self.cam):
+            profile_label = QLabel(profile.label())
+
             table = camwidget.TableCamWidget(profile)
-            #table.selectionModel().selectionChanged.connect(self.update_selection)
-            table.itemDoubleClicked.connect(self.edit_point_table)
-            self.tab_widget.addTab(table, QIcon(":/profile.png"), profile.label())
+
+            table.itemDoubleClicked.connect(lambda table_item: self.edit_point_table(table_item))
+            table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            grid_layout.addWidget(profile_label, 0, column)
+            grid_layout.addWidget(table, 1, column)
+            grid_layout.setColumnMinimumWidth(column, 200)
+            grid_layout.setVerticalSpacing(0)
+            container = QWidget()
+            container.setLayout(grid_layout)
+            self.scroll_area.setWidget(container)
+
         if self.graphs_widget is not None:
             self.graphs_widget.updateGraphs()
             self.graphs_widget.figure.canvas.draw()

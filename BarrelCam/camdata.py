@@ -10,6 +10,7 @@
 # for the specific language governing permissions and limitations under the License.
 #
 
+import csv
 import ezdxf
 import os
 import pickle
@@ -19,7 +20,7 @@ from bisect import insort_left
 #from cadquery.vis import show
 from cadquery import Workplane
 from numpy import array, cos, linalg, pi, sin
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QLocale, Qt
 from PySide6.QtGui import QColor
 
 MAGIC_NUMBER = 20140112
@@ -517,10 +518,11 @@ class CamProfile(object):
         self.check_cam()
         first_derivative = []
         prev_point = CamPoint(0, self.__points[-1].displacement())
+
         for point in self.__points:
             if point.law() == CamPoint._LAW_LINEAR:
                 for x in range(int(prev_point.angle() * angle_steps), int(point.angle() * angle_steps)):
-                    first_derivative.append((x, 0))
+                    first_derivative.append((x / angle_steps, 0))
                     if point.angle() == 360:
                         first_derivative.append((360, 0))
             elif point.law() == CamPoint._LAW_SINUSOIDAL:
@@ -529,6 +531,7 @@ class CamProfile(object):
                     first_derivative.append(((x / angle_steps), c * cos((a * (x / angle_steps) + b) * (pi / 180)) * a))
                 if point.angle() == 360:
                     first_derivative.append((360, c * cos((a * 360 + b) * (pi / 180)) * a))
+
             elif point.law() == CamPoint._LAW_PARABOLIC:
                 a1, b1, c1, a2, b2, c2 = self.quadratic_params(point, prev_point)
                 for x in range(int(prev_point.angle() * angle_steps),
@@ -540,6 +543,7 @@ class CamProfile(object):
                 if point.angle() == 360:
                     first_derivative.append((360, (2 * a2 * 360 + b2) / (pi / 180)))
             prev_point = point
+
         return first_derivative
 
     def get_next_point(self, point):
@@ -657,6 +661,7 @@ class CamProfile(object):
                     polyline.append((x / angle_steps, a2 * pow(x / angle_steps, 2) + b2 * (x / angle_steps) + c2))
             prev_point = point
         polyline.append((360.0, self.__points[-1].displacement()))
+
         return polyline
 
     def quadratic_params(self, point, prev_point):
@@ -944,6 +949,21 @@ class Cam(object):
 
         self.__dirty = False
 
+    def save_2D_CSV(self, filename):
+        """
+        Exports the Cam Data to filename in CSV format
+        """
+
+        with open(filename, 'w', newline='') as csvfile:
+            for camProfile in self.__cams:
+                writer = csv.writer(csvfile, delimiter=';', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                points = camProfile.polyline(False)
+                for point in points:
+                    #writer.writerow([point[0], point[1]])
+                    angle = '{0:.3f}'.format(point[0]).replace('.', QLocale.system().decimalPoint())
+                    displacement = '{0:.3f}'.format(point[1]).replace('.', QLocale.system().decimalPoint())
+                    writer.writerow([angle, displacement])
+
     def save_2D_DXF(self, file_name):
         """
         Exports the Cam Data to file_name
@@ -1064,4 +1084,4 @@ def qColor_to_ACI(color):
             chosen = i
         i += 1
 
-        return chosen
+    return chosen

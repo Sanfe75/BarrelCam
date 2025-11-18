@@ -11,8 +11,8 @@
 #
 
 from numpy import arctan, linspace, pi
-from PySide6.QtCore import QPoint, QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QFont, QFontMetrics, QIcon, QPainter, QPen
+from PySide6.QtCore import QPoint, QRect, QRectF, Qt, Signal, QPointF
+from PySide6.QtGui import QBrush, QFont, QFontMetrics, QPainter, QPen, QPainterPath, QColor
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsView, QGraphicsScene, QSizePolicy, QTableWidget, QTableWidgetItem
 
 from matplotlib.figure import Figure
@@ -20,7 +20,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
 from BarrelCam import camcmd, camdlg
 
-OFFSET = 1
+OFFSET = 2
 
 
 class CamPointItem(QGraphicsItem):
@@ -139,15 +139,16 @@ class CamProfileItem(QGraphicsItem):
         self.setAcceptedMouseButtons(Qt.LeftButton)
         self.angle_steps = self.scene.parent.cam.angle_steps()
         self.displacement_steps = self.scene.parent.cam.displacement_steps()
+        self.color = cam_profile.color()
 
     def boundingRect(self):
         """
         Defines the item borders
         """
 
-        return QRectF(0, (self.cam_profile.min_displacement() - OFFSET) * self.displacement_steps,
+        return QRectF(0, (self.cam_profile.min_displacement() - 8) * self.displacement_steps,
                       360 * self.angle_steps,
-                      (self.cam_profile.max_displacement() - self.cam_profile.min_displacement() + 2 * OFFSET)
+                      (self.cam_profile.max_displacement() - self.cam_profile.min_displacement() + 16)
                       * self.displacement_steps)
 
     def get_profile(self):
@@ -189,6 +190,39 @@ class CamProfileItem(QGraphicsItem):
             painter.drawLine(polyline[i][0] * self.angle_steps, polyline[i][1] * self.displacement_steps,
                              polyline[i + 1][0] * self.angle_steps, polyline[i + 1][1] * self.displacement_steps)
             i += 1
+
+        label_font = QFont()
+        label_font.setPointSizeF(5 * self.angle_steps)
+        label_font.setBold(True)
+        painter.setFont(label_font)
+        if self.cam_profile[-1].displacement() > self.cam_profile[0].displacement():
+            y_position = self.displacement_steps * (self.cam_profile[-1].displacement() + 6)
+        else:
+            y_position = self.displacement_steps * (self.cam_profile[-1].displacement() - 2)
+
+        painter.drawText(OFFSET, y_position, self.cam_profile.label())
+
+    def shape(self):
+        """
+        Define the shape of the CamProfileItem
+
+        :return: QPainterPath representing the shape
+        """
+
+        path = QPainterPath()
+        polyline = self.cam_profile.polyline(False, self.angle_steps)
+
+        path.moveTo(0, polyline[0][1])
+        i = 0
+
+        while i < len(polyline) - 1:
+            path.addRect(polyline[i][0] * self.angle_steps,                                               #x
+                         (polyline[i][1] - OFFSET) * self.displacement_steps,                             #y
+                         (polyline[i + 1][0] - polyline[i][0]) * self.angle_steps,                        #w
+                         (polyline[i + 1][1] - polyline[i][1] + 2 * OFFSET) * self.displacement_steps)    #h
+            i += 1
+
+        return path
 
 
 class CamScene(QGraphicsScene):
@@ -252,9 +286,10 @@ class CamScene(QGraphicsScene):
         Sets the cam modified and update the main_window
         """
 
-        max_displacement = self.parent.cam.max_displacement()
+        cam = self.parent.cam
+        max_displacement = cam.max_displacement()
         self.setSceneRect(0, 0, 360 * self.angle_steps, (max_displacement + OFFSET) * self.displacement_steps)
-        self.parent.cam.set_dirty(True)
+        cam.set_dirty(True)
         self.pointChanged.emit()
 
     def get_x_steps(self):
@@ -309,17 +344,17 @@ class CamScene(QGraphicsScene):
 
         self.clear()
 
+        self.add_grid()
+
         if len(self.parent.cam) > 0:
-            # max_displacement = self.cam.max_displacement()
             self.setSceneRect(0, 0, 360 * self.angle_steps, (self.parent.cam.max_displacement() + OFFSET)
                               * self.displacement_steps)
 
             for cam_profile in self.parent.cam:
                 cam_profile_item = CamProfileItem(cam_profile, self)
+
                 for point in cam_profile:
                     CamPointItem(point, cam_profile_item, self)
-
-        self.add_grid()
 
 
 class CamView(QGraphicsView):
@@ -341,6 +376,18 @@ class CamView(QGraphicsView):
         self.setRenderHint(QPainter.Antialiasing)
         self.setRenderHint(QPainter.TextAntialiasing)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self.last_wheel_event_time = 0
+
+    def mouseDoubleClickEvent(self, event):
+        """
+        Zoom all on left button double click
+        """
+
+        if event.button() == Qt.MiddleButton:
+            self.fitInView(self.sceneRect(), Qt.KeepAspectRatio)
+            self.viewResized.emit(self.sceneRect())
+
+        super().mouseDoubleClickEvent(event)
 
     def mousePressEvent(self, event):
         """
@@ -402,17 +449,17 @@ class GraphsWidget(FigureCanvas):
             polyline = cam_profile.polyline(True)
             x = [xi[0] for xi in polyline]
             y = [-xi[1] for xi in polyline]
-            profiles_plot.plot(x, y, label=cam_profile.label())
+            profiles_plot.plot(x, y, label=cam_profile.label(), color=cam_profile.color().getRgbF())
             profiles_plot.set_ylabel('Displacement $[mm]$')
             first_derivative = cam_profile.first_derivative()
             x = [xi[0] for xi in first_derivative]
             y = [(180 / pi) * arctan((xi[1]) / self.radius) for xi in first_derivative]
-            first_derivative_plot.plot(x, y, label=cam_profile.label())
+            first_derivative_plot.plot(x, y, label=cam_profile.label(), color=cam_profile.color().getRgbF())
             first_derivative_plot.set_ylabel('Slope [°]')
             second_derivative = cam_profile.second_derivative()
             x = [xi[0] for xi in second_derivative]
             y = [(self.speed ** 2) * xi[1] / 1000 for xi in second_derivative]
-            second_derivative_plot.plot(x, y, label=cam_profile.label())
+            second_derivative_plot.plot(x, y, label=cam_profile.label(), color=cam_profile.color().getRgbF())
             second_derivative_plot.set_ylabel('Acceleration $[m/s^2]$')
         if len(self.cam) > 1:
             for i, cam_profile in enumerate(self.cam):
@@ -424,7 +471,7 @@ class GraphsWidget(FigureCanvas):
                     x_min = x[differences.index(y_min)]
                     y_max = max(differences)
                     x_max = x[differences.index(y_max)]
-                    distances_plot.plot(x, differences, label=cam_profile.label())
+                    distances_plot.plot(x, differences, label=cam_profile.label(), color=cam_profile.color().getRgbF())
 
                     x_max_disp = -50
                     if x_max < 180:
@@ -467,10 +514,6 @@ class TableCamWidget(QTableWidget):
         super(TableCamWidget, self).__init__(parent)
 
         self.profile = profile
-        # self.setColumnCount(1)
-        # self.setHeaderLabels([""])
-        # self.setHeaderHidden(True)
-
         self.update()
 
     def update(self):
@@ -485,7 +528,6 @@ class TableCamWidget(QTableWidget):
         self.setAlternatingRowColors(True)
         self.setEditTriggers(QTableWidget.NoEditTriggers)
         self.setSelectionBehavior(QTableWidget.SelectRows)
-        #self.setSelectionMode(QTableWidget.NoSelection)
         for row, cam_point in enumerate(self.profile):
             angle = QTableWidgetItem(str(cam_point.angle()))
             displacement = QTableWidgetItem(str(cam_point.displacement()))

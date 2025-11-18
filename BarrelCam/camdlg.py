@@ -532,7 +532,6 @@ class CamSettings(QDialog):
             cam_setting_grid.addWidget(depth_label, 2, 2)
             cam_setting_grid.addWidget(self.depth_spinbox, 2, 3)
 
-            #self.cam_combobox.currentIndexChanged.connect(self.update_label)
             self.cam_combobox.currentIndexChanged.connect(self.update)
             color_button.clicked.connect(self.update_color)
             self.height_spinbox.valueChanged.connect(self.update_height)
