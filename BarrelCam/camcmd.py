@@ -379,8 +379,8 @@ class PointMoveCommand(QUndoCommand):
         self.cam_point = cam_point_item.cam_point
         self.start_angle = self.cam_point.angle()
         self.start_displacement = self.cam_point.displacement()
-        self.stop_angle = value.x() / self.scene.angle_steps #anglePitch
-        self.stop_displacement = value.y() / self.scene.displacement_steps #displacementPitch
+        self.stop_angle = value.x() / self.scene.angle_steps
+        self.stop_displacement = value.y() / self.scene.displacement_steps
         self.done = done
 
     def id(self):
@@ -388,7 +388,8 @@ class PointMoveCommand(QUndoCommand):
         Command id from cam_point
         """
 
-        return id(self.cam_point)
+        unsigned_mask = 0xFFFFFFF
+        return id(self.cam_point) & unsigned_mask
 
     def mergeWith(self, command):
         """

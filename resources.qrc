@@ -25,7 +25,6 @@
         <file alias="file_save_as.png">images/file_save_as.png</file>
         <file alias="help_about.png">images/help_about.png</file>
         <file alias="icon.png">images/icon.png</file>
-        <file alias="profile.png">images/profile.png</file>
         <file alias="view_graphs.png">images/view_graphs.png</file>
         <file alias="view_settings.png">images/view_settings.png</file>
         <file alias="view_zoom.png">images/view_zoom.png</file>

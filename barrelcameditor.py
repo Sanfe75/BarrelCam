@@ -32,7 +32,7 @@ import qrcresources
 from BarrelCam import camcmd, camdata, camdlg, camwidget
 
 __author__ = 'simone.sanfelici'
-__version__ = "0.9.2"
+__version__ = "0.9.3"
 
 
 class BarrelCamEditor(QMainWindow):
@@ -329,6 +329,7 @@ class BarrelCamEditor(QMainWindow):
         """
 
         if self.ok_to_continue():
+            
             self.scene.clear()
             settings = QSettings()
             if BarrelCamEditor.recent_files:

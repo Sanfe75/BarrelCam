@@ -12,7 +12,7 @@
 
 from numpy import arctan, linspace, pi
 from PySide6.QtCore import QPoint, QRect, QRectF, Qt, Signal, QPointF
-from PySide6.QtGui import QBrush, QFont, QFontMetrics, QPainter, QPen, QPainterPath, QColor
+from PySide6.QtGui import QBrush, QFont, QFontMetrics, QPainter, QPen, QPainterPath
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsView, QGraphicsScene, QSizePolicy, QTableWidget, QTableWidgetItem
 
 from matplotlib.figure import Figure
@@ -20,7 +20,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
 from BarrelCam import camcmd, camdlg
 
-OFFSET = 2
+OFFSET = 1
 
 
 class CamPointItem(QGraphicsItem):
@@ -148,7 +148,7 @@ class CamProfileItem(QGraphicsItem):
 
         return QRectF(0, (self.cam_profile.min_displacement() - 8) * self.displacement_steps,
                       360 * self.angle_steps,
-                      (self.cam_profile.max_displacement() - self.cam_profile.min_displacement() + 16)
+                      (self.cam_profile.max_displacement() - self.cam_profile.min_displacement() + 12)
                       * self.displacement_steps)
 
     def get_profile(self):
@@ -209,17 +209,31 @@ class CamProfileItem(QGraphicsItem):
         :return: QPainterPath representing the shape
         """
 
+        shape_increase = 3
         path = QPainterPath()
         polyline = self.cam_profile.polyline(False, self.angle_steps)
 
-        path.moveTo(0, polyline[0][1])
-        i = 0
+        if self.cam_profile[-1].displacement() > self.cam_profile[0].displacement():
+            y_position = self.displacement_steps * (self.cam_profile[-1].displacement() + 6)
+        else:
+            y_position = self.displacement_steps * (self.cam_profile[-1].displacement() - 2)
 
+        label_font = QFont()
+        label_font.setPointSizeF(5 * self.angle_steps)
+        label_font.setBold(True)
+        font_metrics = QFontMetrics(label_font)
+
+        path.addRect(OFFSET,
+                     y_position - font_metrics.boundingRect(self.cam_profile.label()).height(),
+                     font_metrics.boundingRect(self.cam_profile.label()).width(),
+                     font_metrics.boundingRect(self.cam_profile.label()).height())
+
+        i = 0
         while i < len(polyline) - 1:
-            path.addRect(polyline[i][0] * self.angle_steps,                                               #x
-                         (polyline[i][1] - OFFSET) * self.displacement_steps,                             #y
-                         (polyline[i + 1][0] - polyline[i][0]) * self.angle_steps,                        #w
-                         (polyline[i + 1][1] - polyline[i][1] + 2 * OFFSET) * self.displacement_steps)    #h
+            path.addRect(polyline[i][0] * self.angle_steps,                                                       #x
+                         (polyline[i][1] - shape_increase) * self.displacement_steps,                             #y
+                         (polyline[i + 1][0] - polyline[i][0]) * self.angle_steps,                                #w
+                         (polyline[i + 1][1] - polyline[i][1] + 2 * shape_increase) * self.displacement_steps)    #h
             i += 1
 
         return path
@@ -256,7 +270,7 @@ class CamScene(QGraphicsScene):
         """
 
         tick_font = QFont()
-        tick_font.setPointSizeF(2 * self.angle_steps)
+        tick_font.setPointSizeF(1.5 * self.angle_steps)
         font_metrics = QFontMetrics(tick_font)
         tick_pen = QPen(Qt.DotLine)
         self.addRect(0, -OFFSET, 360 * self.angle_steps, OFFSET + (self.__y_limit * self.displacement_steps), tick_pen)
@@ -273,10 +287,11 @@ class CamScene(QGraphicsScene):
                              tick_pen)
         for y in linspace(0, self.__y_limit, self.__y_steps, endpoint=True):
             text = self.addText("{0:.0f} mm".format(y), tick_font)
-            if y < self.__y_limit:
-                text.setPos(0, y * self.displacement_steps)
+            text.setRotation(270)
+            if y == 0:
+                text.setPos(-font_metrics.boundingRect("0 mm").height(), font_metrics.boundingRect("0 mm").width())
             else:
-                text.setPos(0, (y * self.displacement_steps) - font_metrics.boundingRect("200 mm").height())
+                text.setPos(-font_metrics.boundingRect("200 mm").height(), (y * self.displacement_steps))
             if 0 < y < self.__y_limit:
                 self.addLine(0, y * self.displacement_steps, 360 * self.angle_steps, y * self.displacement_steps,
                              tick_pen)
@@ -513,6 +528,8 @@ class TableCamWidget(QTableWidget):
 
         super(TableCamWidget, self).__init__(parent)
 
+        self.setSelectionBehavior(QTableWidget.SelectRows)
+        self.setAlternatingRowColors(True)
         self.profile = profile
         self.update()
 
@@ -525,9 +542,7 @@ class TableCamWidget(QTableWidget):
         self.setRowCount(len(self.profile))
         self.setColumnCount(3)
         self.setHorizontalHeaderLabels(["Angle", "Displacement", "Law"])
-        self.setAlternatingRowColors(True)
         self.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.setSelectionBehavior(QTableWidget.SelectRows)
         for row, cam_point in enumerate(self.profile):
             angle = QTableWidgetItem(str(cam_point.angle()))
             displacement = QTableWidgetItem(str(cam_point.displacement()))
