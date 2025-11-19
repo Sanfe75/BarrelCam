@@ -529,6 +529,7 @@ class TableCamWidget(QTableWidget):
         super(TableCamWidget, self).__init__(parent)
 
         self.setSelectionBehavior(QTableWidget.SelectRows)
+        self.setSelectionMode(QTableWidget.SingleSelection)
         self.setAlternatingRowColors(True)
         self.profile = profile
         self.update()
