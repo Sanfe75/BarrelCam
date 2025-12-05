@@ -907,6 +907,51 @@ class Cam(object):
             else:
                 raise IOError("unrecognized file version")
 
+    def load_cxf_file(self, file_name):
+        """Load a file.
+
+        Parameters:
+        file_name (str): the full name of the file
+
+        Return:
+        bool: a boolean to represent if the load was successful
+        str: a message
+        """
+
+        with open(file_name, 'rb') as fh:
+            magic = pickle.load(fh)
+            if magic != MAGIC_NUMBER:
+                raise IOError("unrecognized file type")
+            version = pickle.load(fh)
+            if version == FILE_VERSION:
+                self.__angle_steps = pickle.load(fh)
+                self.__displacement_steps = pickle.load(fh)
+                self.__speed = pickle.load(fh)
+                self.__radius = pickle.load(fh)
+                cam_data = pickle.load(fh)
+                while cam_data != "</cam>":
+                    label = pickle.load(fh)
+                    color = pickle.load(fh)
+                    height = pickle.load(fh)
+                    depth = pickle.load(fh)
+                    cam_data = pickle.load(fh)
+                    points = []
+                    while cam_data != "</cam_profile>":
+                        points.append(CamPoint(cam_data[0], cam_data[1], cam_data[2]))
+                        cam_data = pickle.load(fh)
+                    cam_profile = CamProfile(points, label, QColor(color))
+                    cam_profile.set_height(height)
+                    cam_profile.set_depth(depth)
+                    self.__cams.append(cam_profile)
+                    cam_data = pickle.load(fh)
+                self.__dirty = True
+                return True, "Loaded {0} cam from {1}".format(len(self.__cams), os.path.basename(self.__file_name))
+
+            elif version == 1:
+                return False, "Impossible to load an older version file"
+            else:
+                raise IOError("unrecognized file version")
+
     def max_displacement(self):
         """
         returns the max displacement for all the cams
@@ -949,6 +994,30 @@ class Cam(object):
 
         self.__dirty = False
 
+    def save_cxf(self, file_name):
+        """
+        Exports the Cam Data to filename in cxf format
+        """
+
+        with open(file_name, 'wb') as fh:
+            pickle.dump(MAGIC_NUMBER, fh)
+            pickle.dump(FILE_VERSION, fh)
+            pickle.dump(self.angle_steps(), fh)
+            pickle.dump(self.displacement_steps(), fh)
+            pickle.dump(self.__speed, fh)
+            pickle.dump(self.__radius, fh)
+
+            for cam in self.__cams:
+                pickle.dump("<cam_profile>", fh)
+                pickle.dump(cam.label(), fh)
+                pickle.dump(cam.color().name(QColor.HexRgb), fh)
+                pickle.dump(cam.height(), fh)
+                pickle.dump(cam.depth(), fh)
+                for point in cam:
+                    pickle.dump([point.angle(), point.displacement(), point.law()], fh)
+                pickle.dump("</cam_profile>", fh)
+            pickle.dump("</cam>", fh)
+
     def save_2D_CSV(self, filename):
         """
         Exports the Cam Data to filename in CSV format
@@ -987,12 +1056,13 @@ class Cam(object):
         drawing.saveas(file_name)
         return True, "Cam saved to {0}".format(os.path.basename(file_name))
 
-    def save_3D_STP(self, file_name):
+    def save_3D_STP(self, file_name, angle_pitch):
         """
         Exports the Cam Data to file_name in STEP format
         """
 
         results = []
+        angle_pitch *= 10
         for i, cam_profile in enumerate(self.__cams):
             polyline = []
             aux = []
@@ -1001,7 +1071,7 @@ class Cam(object):
             height = cam_profile.height()
             depth = cam_profile.depth()
 
-            for j in range(0, len(points), 10):
+            for j in range(0, len(points), angle_pitch):
                 polyline.append((self.__radius * cos(points[j][0] * (pi / 180)),
                                 self.__radius * sin(points[j][0] * (pi / 180)), -points[j][1]))
                 aux.append(((self.__radius - depth) * cos(points[j][0] * (pi / 180)),

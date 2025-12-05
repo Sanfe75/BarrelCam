@@ -15,7 +15,8 @@ import copy
 from PySide6.QtCore import QMarginsF, Qt
 from PySide6.QtGui import QBrush, QPageLayout, QPainter, QPixmap
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
-from PySide6.QtWidgets import QColorDialog, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox, QVBoxLayout, QTabWidget, QWidget
+from PySide6.QtWidgets import QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, \
+    QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox, QVBoxLayout, QTabWidget, QWidget
 
 from BarrelCam import camdata
 
@@ -438,8 +439,10 @@ class CamSettings(QDialog):
         self.colors = []
         self.heights = []
         self.depths = []
-        tabwidget = QTabWidget()
+        tab_widget = QTabWidget()
         cam_setting_widget = QWidget()
+        limits_setting_widget = QWidget()
+        stp_setting_widget = QWidget()
         grid_setting_widget = QWidget()
 
         speed_label = QLabel("&Speed:")
@@ -458,6 +461,49 @@ class CamSettings(QDialog):
         self.radius_spinbox.setSingleStep(1)
         self.radius_spinbox.setValue(self.cam.radius())
         radius_label.setBuddy(self.radius_spinbox)
+
+        self.acc_checkbox = QCheckBox()
+        self.acc_checkbox.setChecked(self.main_window.max_acceleration is not None)
+        self.acc_limit_label = QLabel("&Acceleration limit:")
+        self.acc_limit_spinbox = QDoubleSpinBox()
+        self.acc_limit_spinbox.setAlignment(Qt.AlignRight)
+        self.acc_limit_spinbox.setSuffix(" m/s\u00B2")
+        self.acc_limit_spinbox.setRange(0, 50.0)
+        self.acc_limit_spinbox.setSingleStep(0.1)
+        self.acc_limit_label.setBuddy(self.acc_limit_spinbox)
+        if self.main_window.max_acceleration is not None:
+            self.acc_limit_spinbox.setValue(self.main_window.max_acceleration)
+        self.min_distance_checkbox = QCheckBox()
+        self.min_distance_checkbox.setChecked(self.main_window.min_distance is not None)
+        self.min_distance_label = QLabel("&Minimum distance limit:")
+        self.min_distance_spinbox = QDoubleSpinBox()
+        self.min_distance_spinbox.setAlignment(Qt.AlignRight)
+        self.min_distance_spinbox.setSuffix(" mm")
+        self.min_distance_spinbox.setRange(0, 500.0)
+        self.min_distance_spinbox.setSingleStep(0.5)
+        self.min_distance_label.setBuddy(self.min_distance_spinbox)
+        if self.main_window.min_distance is not None:
+            self.min_distance_spinbox.setValue(self.main_window.min_distance)
+        self.max_distance_checkbox = QCheckBox()
+        self.max_distance_checkbox.setChecked(self.main_window.max_distance is not None)
+        self.max_distance_label = QLabel("Ma&ximum distance limit:")
+        self.max_distance_spinbox = QDoubleSpinBox()
+        self.max_distance_spinbox.setAlignment(Qt.AlignRight)
+        self.max_distance_spinbox.setSuffix(" mm")
+        self.max_distance_spinbox.setRange(0, 500.0)
+        self.max_distance_spinbox.setSingleStep(0.5)
+        self.max_distance_label.setBuddy(self.max_distance_spinbox)
+        if self.main_window.max_distance is not None:
+            self.max_distance_spinbox.setValue(self.main_window.max_distance)
+
+        pitch_label = QLabel("&Pitch:")
+        self.pitch_spinbox = QSpinBox()
+        self.pitch_spinbox.setAlignment(Qt.AlignRight)
+        self.pitch_spinbox.setSuffix("°")
+        self.pitch_spinbox.setRange(1, 6)
+        self.pitch_spinbox.setSingleStep(1)
+        self.pitch_spinbox.setValue(self.main_window.STP_angle_pitch)
+        pitch_label.setBuddy(self.pitch_spinbox)
 
         x_steps_label = QLabel("&X Tick Steps:")
         self.x_steps_spinbox = QSpinBox()
@@ -523,6 +569,7 @@ class CamSettings(QDialog):
             depth_label.setBuddy(self.depth_spinbox)
 
             color_button = QPushButton("&Color...")
+
             cam_setting_grid.addWidget(cam_label, 1, 0)
             cam_setting_grid.addWidget(self.cam_combobox, 1, 1)
             cam_setting_grid.addWidget(self.color_label, 1, 2)
@@ -537,6 +584,21 @@ class CamSettings(QDialog):
             self.height_spinbox.valueChanged.connect(self.update_height)
             self.depth_spinbox.valueChanged.connect(self.update_depth)
 
+        limits_setting_grid = QGridLayout()
+        limits_setting_grid.addWidget(self.acc_checkbox, 0, 0)
+        limits_setting_grid.addWidget(self.acc_limit_label, 0, 1)
+        limits_setting_grid.addWidget(self.acc_limit_spinbox, 0, 2)
+        limits_setting_grid.addWidget(self.min_distance_checkbox, 1, 0)
+        limits_setting_grid.addWidget(self.min_distance_label, 1, 1)
+        limits_setting_grid.addWidget(self.min_distance_spinbox, 1, 2)
+        limits_setting_grid.addWidget(self.max_distance_checkbox, 2, 0)
+        limits_setting_grid.addWidget(self.max_distance_label, 2, 1)
+        limits_setting_grid.addWidget(self.max_distance_spinbox, 2, 2)
+
+        stp_setting_grid = QGridLayout()
+        stp_setting_grid.addWidget(pitch_label, 0, 0)
+        stp_setting_grid.addWidget(self.pitch_spinbox, 0, 1)
+
         grid_setting_grid = QGridLayout()
         grid_setting_grid.addWidget(x_steps_label, 0, 0)
         grid_setting_grid.addWidget(self.x_steps_spinbox, 0, 1)
@@ -546,17 +608,26 @@ class CamSettings(QDialog):
         grid_setting_grid.addWidget(self.y_steps_spinbox, 2, 1)
 
         cam_setting_widget.setLayout(cam_setting_grid)
+        limits_setting_widget.setLayout(limits_setting_grid)
+        stp_setting_widget.setLayout(stp_setting_grid)
         grid_setting_widget.setLayout(grid_setting_grid)
 
-        tabwidget.addTab(cam_setting_widget, "&Cam")
-        tabwidget.addTab(grid_setting_widget, "&Grid")
+        tab_widget.addTab(cam_setting_widget, "&Cam")
+        tab_widget.addTab(limits_setting_widget, "&Limits")
+        tab_widget.addTab(stp_setting_widget, "&STP Settings")
+        tab_widget.addTab(grid_setting_widget, "&Grid")
 
         layout = QVBoxLayout()
-        layout.addWidget(tabwidget)
+        layout.addWidget(tab_widget)
         layout.addSpacing(30)
         layout.addWidget(buttonbox)
 
         self.setLayout(layout)
+
+        self.acc_checkbox.stateChanged.connect(self.update_limits)
+        self.min_distance_checkbox.stateChanged.connect(self.update_limits)
+        self.max_distance_checkbox.stateChanged.connect(self.update_limits)
+        self.update_limits()
 
         buttonbox.accepted.connect(self.accept)
         buttonbox.rejected.connect(self.reject)
@@ -604,6 +675,18 @@ class CamSettings(QDialog):
         """
 
         self.heights[self.cam_combobox.currentIndex()] = self.height_spinbox.value()
+
+    def update_limits(self):
+        """
+        Updates the limits dialog
+        """
+
+        self.acc_limit_label.setEnabled(self.acc_checkbox.isChecked())
+        self.acc_limit_spinbox.setDisabled(not self.acc_checkbox.isChecked())
+        self.min_distance_label.setEnabled(self.min_distance_checkbox.isChecked())
+        self.min_distance_spinbox.setDisabled(not self.min_distance_checkbox.isChecked())
+        self.max_distance_label.setEnabled(self.max_distance_checkbox.isChecked())
+        self.max_distance_spinbox.setDisabled(not self.max_distance_checkbox.isChecked())
 
     #def update_label(self):
     #    """

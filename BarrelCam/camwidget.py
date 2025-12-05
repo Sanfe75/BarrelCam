@@ -13,7 +13,9 @@
 from numpy import arctan, linspace, pi
 from PySide6.QtCore import QPoint, QRect, QRectF, Qt, Signal, QPointF
 from PySide6.QtGui import QBrush, QFont, QFontMetrics, QPainter, QPen, QPainterPath
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsView, QGraphicsScene, QSizePolicy, QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsView, QGraphicsScene, QMessageBox, QSizePolicy, QTableWidget, \
+    QTableWidgetItem
+
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -427,7 +429,7 @@ class GraphsWidget(FigureCanvas):
     Class to represent the FigureCanvas widget
     """
 
-    def __init__(self, cam):
+    def __init__(self, cam, max_acc=None, min_dist=None, max_dist=None):
         """
         Constructor for the graphs
         """
@@ -437,6 +439,9 @@ class GraphsWidget(FigureCanvas):
         self.radius = self.cam.radius()
         self.figure = Figure()
         self.figure.patch.set_facecolor('white')
+        self.max_acc = max_acc
+        self.min_dist = min_dist
+        self.max_dist = max_dist
 
         FigureCanvas.__init__(self, self.figure)
 
@@ -474,14 +479,46 @@ class GraphsWidget(FigureCanvas):
             second_derivative = cam_profile.second_derivative()
             x = [xi[0] for xi in second_derivative]
             y = [(self.speed ** 2) * xi[1] / 1000 for xi in second_derivative]
+            color = "black"
+            if self.max_acc is not None and max(y) > self.max_acc:
+                color = "red"
+                error_dialog = QMessageBox()
+                error_dialog.setIcon(QMessageBox.Warning)
+                error_dialog.setWindowTitle("Warning")
+                error_dialog.setText("The acceleration is too high.")
+                error_dialog.setInformativeText("The maximum value for the acceleration is {0:0.1f}m/s\u00B2."
+                                                .format(self.max_acc))
+                error_dialog.setStandardButtons(QMessageBox.Ok)
+                error_dialog.exec()
             second_derivative_plot.plot(x, y, label=cam_profile.label(), color=cam_profile.color().getRgbF())
             second_derivative_plot.set_ylabel('Acceleration $[m/s^2]$')
+
+            y_max = max(y)
+            x_max = x[y.index(y_max)]
+            x_max_disp = -50
+            if x_max < 180:
+                x_max_disp = +50
+            second_derivative_plot.annotate('Max = {0:0.2f}'.format(y_max),
+                                            xy=(x_max, y_max), xytext=(x_max + x_max_disp, y_max - 0.2),
+                                            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
+                                            color=color)
+
+            y_min = min(y)
+            x_min = x[y.index(y_min)]
+            x_min_disp = -50
+            if x_min < 180:
+                x_min_disp = +50
+            second_derivative_plot.annotate('Min = {0:0.2f}'.format(y_max),
+                                            xy=(x_min, y_min), xytext=(x_min + x_min_disp, y_min + 0.2),
+                                            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
+                                            color=color)
+
         if len(self.cam) > 1:
             for i, cam_profile in enumerate(self.cam):
                 polyline = cam_profile.polyline(True)
                 x = [xi[0] for xi in polyline]
                 if i > 0:
-                    differences = [y[1] - y0[j] for j, y in enumerate(polyline)]
+                    differences = [abs(y[1] - y0[j]) for j, y in enumerate(polyline)]
                     y_min = min(differences)
                     x_min = x[differences.index(y_min)]
                     y_max = max(differences)
@@ -496,12 +533,41 @@ class GraphsWidget(FigureCanvas):
                     if x_min < 180:
                         x_min_disp = +50
 
+                    color = "black"
+                    if self.max_dist is not None:
+                        if y_max > self.max_dist + 0.1:
+                            color = "red"
+                            error_dialog = QMessageBox()
+                            error_dialog.setIcon(QMessageBox.Warning)
+                            error_dialog.setWindowTitle("Warning")
+                            error_dialog.setText("The profiles are too far away.")
+                            error_dialog.setInformativeText("The maximum distance between the profiles is {0:0.1f}mm."
+                                                            .format(self.max_dist))
+                            error_dialog.setStandardButtons(QMessageBox.Ok)
+                            error_dialog.exec()
+
                     distances_plot.annotate('Max = {0:0.2f}'.format(y_max),
-                                           xy=(x_max, y_max), xytext=(x_max + x_max_disp, y_max + 3),
-                                           arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"))
+                                            xy=(x_max, y_max), xytext=(x_max + x_max_disp, y_max - 3),
+                                            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
+                                            color=color)
+
+                    color = "black"
+                    if self.min_dist is not None:
+                        if y_min < self.min_dist - 0.1:
+                            color = "red"
+                            error_dialog = QMessageBox()
+                            error_dialog.setIcon(QMessageBox.Warning)
+                            error_dialog.setWindowTitle("Warning")
+                            error_dialog.setText("The profiles are too close.")
+                            error_dialog.setInformativeText("The minimum distance between the profiles is {}mm."
+                                                            .format(self.min_dist))
+                            error_dialog.setStandardButtons(QMessageBox.Ok)
+                            error_dialog.exec()
+
                     distances_plot.annotate('Min = {0:0.2f}'.format(y_min),
-                                           xy=(x_min, y_min), xytext=(x_min + x_min_disp, y_min - 4),
-                                           arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"))
+                                            xy=(x_min, y_min), xytext=(x_min + x_min_disp, y_min + 3),
+                                            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
+                                            color=color)
                     distances_plot.scatter([x_max, x_min], [y_max, y_min])
                 else:
                     y0 = [xi[1] for xi in polyline]

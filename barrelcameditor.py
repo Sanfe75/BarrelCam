@@ -32,7 +32,7 @@ import qrcresources
 from BarrelCam import camcmd, camdata, camdlg, camwidget
 
 __author__ = 'simone.sanfelici'
-__version__ = "0.9.3"
+__version__ = "0.9.4"
 
 
 class BarrelCamEditor(QMainWindow):
@@ -60,13 +60,21 @@ class BarrelCamEditor(QMainWindow):
         self.cam = camdata.Cam()
         self.selected_points = []
         self.selected_cams = []
+        self.max_acceleration = None
+        self.min_distance = None
+        self.max_distance = None
+        self.STP_angle_pitch = 6
 
         if file_name is None:
             self.cam.set_file_name("Unnamed-{0}".format(BarrelCamEditor.next_id))
             BarrelCamEditor.next_id += 1
             self.cam.set_dirty(False)
         else:
-            _, message = self.cam.load(file_name)
+            if file_name[-4:].lower() == ".cam":
+                _, message = self.cam.load(file_name)
+            elif file_name[-4:].lower() == ".cxf":
+                self.cam.set_file_name(file_name[:-4] + ".cam")
+                _, message = self.cam.load_cxf_file(file_name)
             self.statusBar().showMessage(message, 5000)
 
         self.view = camwidget.CamView(self)
@@ -93,22 +101,6 @@ class BarrelCamEditor(QMainWindow):
         list_dock_widget.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         list_dock_widget.setWidget(self.scroll_area)
         self.addDockWidget(Qt.LeftDockWidgetArea, list_dock_widget)
-
-
-
-
-
-
-
-
-
-
-        #tab_dock_widget = QDockWidget("Tab View", self)
-        #tab_dock_widget.setObjectName("TabDockWidget")
-        #tab_dock_widget.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        #self.tab_widget = QTabWidget()
-        #tab_dock_widget.setWidget(self.tab_widget)
-        #self.addDockWidget(Qt.LeftDockWidgetArea, tab_dock_widget)
 
         status = self.statusBar()
         status.setSizeGripEnabled(False)
@@ -339,6 +331,10 @@ class BarrelCamEditor(QMainWindow):
             settings.setValue("Scene/x_steps", self.scene.get_x_steps())
             settings.setValue("Scene/y_limit", self.scene.get_y_limit())
             settings.setValue("Scene/y_steps", self.scene.get_y_steps())
+            settings.setValue("Limits/acceleration", self.max_acceleration)
+            settings.setValue("Limits/min_distance", self.min_distance)
+            settings.setValue("Limits/max_distance", self.max_distance)
+            settings.setValue("Settings/STP_angle_pitch", self.STP_angle_pitch)
             BarrelCamEditor.instances.remove(self)
         else:
             event.ignore()
@@ -598,25 +594,9 @@ class BarrelCamEditor(QMainWindow):
             extension = file_name[-4:].lower()
             if extension != ".stp":
                 file_name += ".stp"
-            result, message = self.cam.save_3D_STP(file_name)
+            result, message = self.cam.save_3D_STP(file_name, self.STP_angle_pitch)
             if result:
                 self.update_status(message)
-
-
-    #def file_export_3DCSV(self):
-    #    """
-    #    Exports a 3d CSV
-    #    """
-
-    #    pass
-        # directory = self.file_name[:-4] + ".csv"
-        # file_name = QFileDialog.getSaveFileName(self, "Barrel Cam Editor - Export the cam file",
-        #                                       directory, "CSV file (*.csv)")
-        # if file_name:
-        #    extension = file_name[-4:].lower()
-        #    if extension != ".csv":
-        #        file_name += ".csv"
-        #    self.cam.save3DCSV(file_name)
 
     @staticmethod
     def file_new():
@@ -631,9 +611,17 @@ class BarrelCamEditor(QMainWindow):
 
         path = QFileInfo(self.cam.file_name()).path() if not self.cam.file_name().startswith("Unnamed") else "."
         file_name, ext = QFileDialog.getOpenFileName(self, "Barrel Cam Editor - Load Barrel Cam",
-                                                     path, "Barrel Cam file (*.cam)")
+                                                     path, "Cam file (*.cam);;Cam exchange file (*.cxf)",
+                                                     "Cam file (*.cam)")
+
+        ext = ext[-5:-1]
+
         if file_name:
-            self.load_file(file_name)
+
+            if ext == ".cam":
+                self.load_file(file_name)
+            if ext == ".cxf":
+                self.load_cxf_file(file_name)
 
     def file_print(self):
         """
@@ -670,20 +658,32 @@ class BarrelCamEditor(QMainWindow):
         """Save all the files.
         """
 
-        pass
+        count = 0
+        for window in BarrelCamEditor.instances:
+            if window.cam.dirty():
+                if window.file_save():
+                    count += 1
+        self.update_status("Saved {0} of {1} files".format(count, len(BarrelCamEditor.instances)))
 
     def file_save_as(self):
         """Create the dialog to save a new file.
         """
 
         file_name, ext = QFileDialog.getSaveFileName(self, "Barrel Cam Editor - Save the cam file",
-                                                     self.cam.file_name(), "Cam file (*.cam)")
+                                                     self.cam.file_name(),
+                                                     "Cam file (*.cam);;Cam exchange file (*.cxf)",
+                                                     "Cam file (*.cam)")
+        ext = ext[-5:-1]
+
         if file_name:
             extension = file_name[-4:].lower()
-            if extension != ".cam":
-                file_name += ".cam"
-            self.cam.set_file_name(file_name)
-            self.file_save()
+            if extension != ext:
+                file_name += ext
+            if ext == ".cam":
+                self.cam.set_file_name(file_name)
+                self.file_save()
+            elif ext == ".cxf":
+                self.cam.save_cxf(file_name)
 
     def help_about(self):
         """Open the about message.
@@ -726,6 +726,25 @@ class BarrelCamEditor(QMainWindow):
             else:
                 BarrelCamEditor(file_name).show()
 
+    def load_cxf_file(self, file_name):
+        """
+        It opens a new MainWindow with file_name
+        """
+
+        cam_file_name = file_name[:-4] + ".cam"
+        if not self.cam.dirty() and self.cam.file_name().startswith("Unnamed"):
+            self.cam.set_file_name(cam_file_name)
+            result, message = self.cam.load_cxf_file(file_name)
+            if result:
+                self.update_status("Cam loaded from {0}".format(QFileInfo(self.cam.file_name()).fileName()))
+                self.scene.update_scene()
+                self.update_widgets()
+                self.update_ui()
+            else:
+                self.update_status(message)
+        else:
+            BarrelCamEditor(file_name).show()
+
     def load_settings(self):
         """
         Loads the program settings
@@ -750,15 +769,18 @@ class BarrelCamEditor(QMainWindow):
             y_steps = int(settings.value("Scene/y_steps"))
         else:
             y_steps = 2
-        if settings.value("Options/ortho") is not None:
-            ortho = bool(settings.value("Options/ortho"))
-        else:
-            ortho = False
+        if settings.value("Limits/acceleration") is not None:
+            self.max_acceleration = float(settings.value("Limits/acceleration"))
+        if settings.value("Limits/min_distance") is not None:
+            self.min_distance = float(settings.value("Limits/min_distance"))
+        if settings.value("Limits/max_distance") is not None:
+            self.max_distance = float(settings.value("Limits/max_distance"))
+        if settings.value("Settings/STP_angle_pitch") is not None:
+            self.STP_angle_pitch = int(settings.value("Settings/STP_angle_pitch"))
 
         self.scene.set_x_steps(x_steps)
         self.scene.set_y_limit(y_limit)
         self.scene.set_y_steps(y_steps)
-        # self.scene.setOrtho(ortho)
 
     def ok_to_continue(self):
         """Create Dialog to continue.
@@ -824,6 +846,19 @@ class BarrelCamEditor(QMainWindow):
             self.scene.set_x_steps(x_steps)
             self.scene.set_y_limit(y_limit)
             self.scene.set_y_steps(y_steps)
+            self.STP_angle_pitch = dlg.pitch_spinbox.value()
+            if dlg.acc_checkbox.isChecked():
+                self.max_acceleration = dlg.acc_limit_spinbox.value()
+            else:
+                self.max_acceleration = None
+            if dlg.min_distance_checkbox.isChecked():
+                self.min_distance = dlg.min_distance_spinbox.value()
+            else:
+                self.min_distance = None
+            if dlg.max_distance_checkbox.isChecked():
+                self.max_distance = dlg.max_distance_spinbox.value()
+            else:
+                self.max_distance = None
 
     def update_file_menu(self):
         """
@@ -970,7 +1005,7 @@ class BarrelCamEditor(QMainWindow):
         Shows the graphs for the cam profiles
         """
 
-        graphs_widget = camwidget.GraphsWidget(self.cam)
+        graphs_widget = camwidget.GraphsWidget(self.cam, self.max_acceleration, self.min_distance, self.max_distance)
         graphs_toolbar = NavigationToolbar(graphs_widget, self)
         dlg = camdlg.GraphsDlg(graphs_widget, graphs_toolbar, self)
         dlg.show()
